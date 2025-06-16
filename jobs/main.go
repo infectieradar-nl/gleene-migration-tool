@@ -1,7 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"log/slog"
+)
 
 func main() {
-	fmt.Println("Hello, World!")
+	slog.Info("Start migration job")
 }
