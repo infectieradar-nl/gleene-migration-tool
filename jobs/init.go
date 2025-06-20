@@ -32,9 +32,14 @@ type config struct {
 		StudyDB           db.DBConfigYaml `json:"study_db" yaml:"study_db"`
 	} `json:"db_configs" yaml:"db_configs"`
 
-	InstanceID string `json:"instance_id" yaml:"instance_id"`
-	StudyKey   string `json:"study_key" yaml:"study_key"`
-	InfoCsv    string `json:"info_csv" yaml:"info_csv"`
+	InstanceID        string `json:"instance_id" yaml:"instance_id"`
+	StudyKey          string `json:"study_key" yaml:"study_key"`
+	StudyGlobalSecret string `json:"study_global_secret" yaml:"study_global_secret"`
+	InfoCsv           string `json:"info_csv" yaml:"info_csv"`
+	CSVSeparator      string `json:"csv_separator" yaml:"csv_separator"`
+
+	DryRun             bool `json:"dry_run" yaml:"dry_run"`
+	ForceOverridePhone bool `json:"force_override_phone" yaml:"force_override_phone"`
 }
 
 var conf config
@@ -42,6 +47,9 @@ var conf config
 var (
 	participantUserDBService *userDB.ParticipantUserDBService
 	studyDBService           *studyDB.StudyDBService
+
+	studySecretKey       string
+	studyIdMappingMethod string
 )
 
 func init() {
@@ -79,6 +87,7 @@ func init() {
 
 	initDBs()
 
+	initStudySecretKey()
 }
 
 func initDBs() {
@@ -114,4 +123,15 @@ func secretsOverride() {
 	if dbPassword := os.Getenv(ENV_PARTICIPANT_USER_DB_PASSWORD); dbPassword != "" {
 		conf.DBConfigs.ParticipantUserDB.Password = dbPassword
 	}
+}
+
+func initStudySecretKey() {
+	study, err := studyDBService.GetStudy(conf.InstanceID, conf.StudyKey)
+	if err != nil {
+		slog.Error("Error getting study", slog.String("instance_id", conf.InstanceID), slog.String("study_key", conf.StudyKey), slog.String("error", err.Error()))
+		panic(err)
+	}
+
+	studySecretKey = study.SecretKey
+	studyIdMappingMethod = study.Configs.IdMappingMethod
 }
