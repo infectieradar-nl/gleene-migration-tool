@@ -33,6 +33,8 @@ type config struct {
 	} `json:"db_configs" yaml:"db_configs"`
 
 	InstanceID string `json:"instance_id" yaml:"instance_id"`
+	StudyKey   string `json:"study_key" yaml:"study_key"`
+	InfoCsv    string `json:"info_csv" yaml:"info_csv"`
 }
 
 var conf config
@@ -54,6 +56,8 @@ func init() {
 		panic(err)
 	}
 
+	secretsOverride()
+
 	// Init logger:
 	utils.InitLogger(
 		conf.Logging.LogLevel,
@@ -66,6 +70,12 @@ func init() {
 		conf.Logging.CompressOldLogs,
 		conf.Logging.IncludeBuildInfo,
 	)
+
+	// check if info csv exists
+	if _, err := os.Stat(conf.InfoCsv); os.IsNotExist(err) {
+		slog.Error("Info CSV file does not exist", slog.String("file", conf.InfoCsv))
+		panic(err)
+	}
 
 	initDBs()
 
@@ -83,5 +93,25 @@ func initDBs() {
 	if err != nil {
 		slog.Error("Error connecting to Study DB", slog.String("error", err.Error()))
 		panic(err)
+	}
+}
+
+func secretsOverride() {
+	// Override secrets from environment variables
+
+	if dbUsername := os.Getenv(ENV_STUDY_DB_USERNAME); dbUsername != "" {
+		conf.DBConfigs.StudyDB.Username = dbUsername
+	}
+
+	if dbPassword := os.Getenv(ENV_STUDY_DB_PASSWORD); dbPassword != "" {
+		conf.DBConfigs.StudyDB.Password = dbPassword
+	}
+
+	if dbUsername := os.Getenv(ENV_PARTICIPANT_USER_DB_USERNAME); dbUsername != "" {
+		conf.DBConfigs.ParticipantUserDB.Username = dbUsername
+	}
+
+	if dbPassword := os.Getenv(ENV_PARTICIPANT_USER_DB_PASSWORD); dbPassword != "" {
+		conf.DBConfigs.ParticipantUserDB.Password = dbPassword
 	}
 }

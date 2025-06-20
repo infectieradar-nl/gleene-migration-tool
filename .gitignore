@@ -1,2 +1,4 @@
 test/migration-job.yaml
 test/run.sh
+test/example.csv
+logs
