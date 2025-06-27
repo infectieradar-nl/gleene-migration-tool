@@ -2,9 +2,8 @@ package main
 
 import (
 	"log/slog"
-	"regexp"
-	"strings"
 
+	studyTypes "github.com/case-framework/case-backend/pkg/study/types"
 	studyUtils "github.com/case-framework/case-backend/pkg/study/utils"
 	userTypes "github.com/case-framework/case-backend/pkg/user-management/types"
 )
@@ -39,35 +38,13 @@ type Address struct {
 
 func prepAddress(row CSVRow) Address {
 	result := Address{
-		FirstName:  row.FirstName,
-		LastName:   row.LastName,
-		City:       row.City,
-		PostalCode: row.ZipCode,
-	}
-
-	// Trim whitespace
-	address := strings.TrimSpace(row.Address)
-
-	if address == "" {
-		return result
-	}
-
-	// Regex pattern for Dutch addresses
-	// ^(.+?)\s+(\d+)([a-zA-Z]*)(?:\s*[-\s]\s*(.+))?$
-	pattern := `^(.+?)\s+(\d+)([a-zA-Z]*)(?:\s*[-\s]\s*(.+))?$`
-	regex := regexp.MustCompile(pattern)
-
-	matches := regex.FindStringSubmatch(address)
-	if matches == nil {
-		return result
-	}
-
-	result.Street = strings.TrimSpace(matches[1])
-	result.HouseNumber = matches[2] + matches[3] // number + suffix
-
-	// Add extra info if present (matches[4])
-	if len(matches) > 4 && matches[4] != "" {
-		result.Street2 = strings.TrimSpace(matches[4])
+		FirstName:   row.FirstName,
+		LastName:    row.LastName,
+		Street:      row.Street,
+		HouseNumber: row.HouseNumber,
+		Street2:     row.HouseExt,
+		City:        row.City,
+		PostalCode:  row.ZipCode,
 	}
 
 	return result
@@ -87,9 +64,6 @@ func (p *MigrateDataProcessor) ProcessRow(row CSVRow, rowIndex int) bool {
 	}
 
 	phoneNumber := prepPhoneNumber(row)
-	address := prepAddress(row)
-
-	slog.Debug("Address", slog.Any("address", address))
 
 	// Check if participant exists
 	if !participantExistsAndActive(conf.InstanceID, conf.StudyKey, row.ParticipantID) {
@@ -146,7 +120,18 @@ func (p *MigrateDataProcessor) ProcessRow(row CSVRow, rowIndex int) bool {
 		}
 	}
 
-	// TODO: Update address
+	// Update address
+	contactInfo := prepNewContactInfoResponse(row, confidentialID)
+	if conf.DryRun {
+		slog.Info("Would update address for user", slog.String("user_id", user.ID.Hex()), slog.Any("contact_info", contactInfo))
+	} else {
+		err := studyDBService.ReplaceConfidentialResponse(conf.InstanceID, conf.StudyKey, contactInfo)
+		if err != nil {
+			slog.Error("Unexpected error while updating contact info", slog.String("instanceID", conf.InstanceID), slog.String("studyKey", conf.StudyKey), slog.String("error", err.Error()))
+			return false
+		}
+		slog.Info("Updated address for user", slog.String("user_id", user.ID.Hex()))
+	}
 
 	return true
 }
@@ -168,4 +153,78 @@ func hasPhoneNumber(user userTypes.User) bool {
 	}
 
 	return contactInfo.Phone != ""
+}
+
+func prepNewContactInfoResponse(row CSVRow, confidentialID string) studyTypes.SurveyResponse {
+	address := prepAddress(row)
+
+	rItem := studyTypes.SurveyResponse{
+		Key:           "SwabEntry.Addr",
+		ParticipantID: confidentialID,
+		Responses: []studyTypes.SurveyItemResponse{
+			{
+				Key: "SwabEntry.Addr",
+				Response: &studyTypes.ResponseItem{
+					Key: "rg",
+					Items: []*studyTypes.ResponseItem{
+						{
+							Key: "contact",
+							Items: []*studyTypes.ResponseItem{
+								{
+									Key:   "fullName",
+									Value: "",
+								},
+								{
+									Key:   "givenName",
+									Value: address.FirstName,
+								},
+								{
+									Key:   "familyName",
+									Value: address.LastName,
+								},
+								{
+									Key:   "company",
+									Value: "",
+								},
+								{
+									Key:   "email",
+									Value: "",
+								},
+								{
+									Key:   "phone",
+									Value: "",
+								},
+								{
+									Key:   "street",
+									Value: address.Street,
+								},
+								{
+									Key:   "street2",
+									Value: address.Street2,
+								},
+								{
+									Key:   "city",
+									Value: address.City,
+								},
+								{
+									Key:   "postalCode",
+									Value: address.PostalCode,
+								},
+								{
+									Key:   "country",
+									Value: address.Country,
+								},
+								{
+									Key:   "houseNumber",
+									Value: address.HouseNumber,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return rItem
 }

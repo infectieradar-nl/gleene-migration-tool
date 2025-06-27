@@ -14,9 +14,12 @@ type CSVRow struct {
 	PhoneNumber   string
 	FirstName     string
 	LastName      string
-	Address       string
+	Street        string
+	HouseNumber   string
+	HouseExt      string
 	City          string
 	ZipCode       string
+	Country       string
 }
 
 // CSVProcessor defines the interface for processing CSV rows
@@ -72,8 +75,12 @@ func StreamCSV(
 					row.FirstName = value
 				case "dn_achternaam":
 					row.LastName = value
-				case "dn_adres":
-					row.Address = value
+				case "dn_house_no":
+					row.HouseNumber = value
+				case "dn_house_ext":
+					row.HouseExt = value
+				case "dn_street":
+					row.Street = value
 				case "dn_plaats":
 					row.City = value
 				case "dn_postcode":
